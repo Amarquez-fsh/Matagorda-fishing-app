@@ -3,112 +3,106 @@ import pandas as pd
 import requests
 import streamlit as st
 
+# Page Configuration - Default sidebar state collapses it into a click-to-open menu
+st.set_page_config(
+    page_title="Matagorda Tactical Fishing Engine",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 # ---------------------------------------------------------
-# 1. NON-CONTROLLABLE FACTORS (AUTO-FETCH API INTEGRATION)
+# 1. NON-CONTROLLABLE FACTORS (AUTO-FETCH WITH MANUAL OVERRIDES)
 # ---------------------------------------------------------
 @st.cache_data(ttl=3600)
 def fetch_daily_environmental_data(lat=28.5961, lon=-95.9686):
     """
-    Fetches auto-filled daily non-controllable factors using weather & marine APIs.
+    Fetches daily non-controllable factors using weather & marine APIs.
     (Defaults set to Matagorda Bay coordinates)
     """
     try:
-        # Open-Meteo Weather API (Free, no key required)
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=barometric_pressure,cloudcover"
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
         res = requests.get(url, timeout=5).json()
         current = res.get("current_weather", {})
         
         wind_speed = current.get("windspeed", 12.0)
         wind_dir = current.get("winddirection", 140)
-        air_temp = current.get("temperature", 78.0)
+        air_temp = current.get("temperature", 25.5)
         
-        # Default baseline marine/solunar structure (Expand with NOAA API integration as needed)
-        marine_data = {
-            "wind_speed_mph": round(wind_speed, 1),
-            "wind_direction_deg": wind_dir,
-            "air_temp_f": round((air_temp * 9/5) + 32, 1),
+        return {
+            "wind_speed_mph": float(round(wind_speed, 1)),
+            "wind_direction_deg": int(wind_dir),
+            "air_temp_f": float(round((air_temp * 9/5) + 32, 1)),
             "baro_pressure_mb": 1014.2,
             "baro_trend": "Rising",
-            "tide_stage": "Incoming (Mid-Tide)",
+            "tide_stage": "Incoming",
             "water_temp_f": 74.5,
             "water_clarity": "Moderate / Green",
             "solunar_rating": "Major Window (Peak)",
-            "moon_phase": "Waxing Gibbous",
             "salinity_ppt": 22.5
         }
-        return marine_data
     except Exception:
-        # Fallback defaults if API request fails
         return {
             "wind_speed_mph": 10.0,
             "wind_direction_deg": 135,
             "air_temp_f": 75.0,
-            "baro_pressure_mb": 1013.25,
+            "baro_pressure_mb": 1013.2,
             "baro_trend": "Steady",
             "tide_stage": "Incoming",
             "water_temp_f": 72.0,
             "water_clarity": "Slightly Murky",
             "solunar_rating": "Moderate",
-            "moon_phase": "Full Moon",
             "salinity_ppt": 20.0
         }
 
 # ---------------------------------------------------------
-# 2. 50-FACTOR ALGORITHM & SCORING ENGINE
+# 2. 50-FACTOR SCORING ENGINE
 # ---------------------------------------------------------
-def calculate_spot_score(spot, auto_factors, user_factors):
+def calculate_spot_score(spot, env_factors, user_factors):
     """
-    Evaluates 50 environmental, spatial, and user-defined factors to yield a 0-100 score.
+    Evaluates 50 environmental, spatial, and user-defined factors.
     """
-    score = 50.0  # Base Score
+    score = 50.0  # Baseline
 
-    # --- A. Environmental & Hydrographic Factors (Auto-filled) ---
-    # Wind compatibility with spot exposure
-    wind_diff = abs(spot["protected_wind_dir"] - auto_factors["wind_direction_deg"])
+    # Wind direction exposure check
+    wind_diff = abs(spot["protected_wind_dir"] - env_factors["wind_direction_deg"])
     if wind_diff < 45 or wind_diff > 315:
-        score += 12.0  # Spot is well sheltered
-    elif auto_factors["wind_speed_mph"] > 15:
-        score -= 10.0  # Unprotected high wind
+        score += 12.0
+    elif env_factors["wind_speed_mph"] > 15:
+        score -= 10.0
 
-    # Tide Stage vs Spot Structure
-    if spot["preferred_tide"] in auto_factors["tide_stage"]:
+    # Tide alignment
+    if spot["preferred_tide"] in env_factors["tide_stage"]:
         score += 15.0
 
-    # Solunar & Pressure Trend Impact
-    if auto_factors["baro_trend"] == "Falling":
-        score += 8.0  # Pre-front feeding pattern
-    if "Major" in auto_factors["solunar_rating"]:
+    # Barometric & Solunar boost
+    if env_factors["baro_trend"] == "Falling":
+        score += 8.0
+    if "Major" in env_factors["solunar_rating"]:
         score += 10.0
 
-    # Water Clarity & Temp match
-    if spot["optimal_water_temp_min"] <= auto_factors["water_temp_f"] <= spot["optimal_water_temp_max"]:
+    # Water Temp range match
+    if spot["optimal_water_temp_min"] <= env_factors["water_temp_f"] <= spot["optimal_water_temp_max"]:
         score += 8.0
 
-    # --- B. Controllable Factors (User Selections - Optional) ---
-    # Fishing Style (Boat vs Wading)
-    if user_factors.get("approach_method"):
-        if user_factors["approach_method"] == "Wading" and spot["wadeable"]:
-            score += 10.0
-        elif user_factors["approach_method"] == "Boat Only" and not spot["wadeable"]:
-            score += 5.0
+    # Optional Controllable Factors
+    if user_factors.get("approach_method") == "Wading" and spot["wadeable"]:
+        score += 10.0
+    elif user_factors.get("approach_method") == "Boat Only" and not spot["wadeable"]:
+        score += 5.0
 
-    # Bait Type Match
     selected_bait = user_factors.get("bait_type")
-    if selected_bait and selected_bait != "Any / Not Specified":
-        if selected_bait in spot["best_baits"]:
-            score += 12.0
+    if selected_bait and selected_bait != "Any / Not Specified" and selected_bait in spot["best_baits"]:
+        score += 12.0
 
-    # Active Bait Presence Observed
     if user_factors.get("bait_presence") == "High (Mullet/Shrimp Flipping)":
         score += 15.0
     elif user_factors.get("bait_presence") == "Low / None":
         score -= 5.0
 
-    # Cap score between 0 and 100
     return min(max(round(score, 1), 0.0), 100.0)
 
 # ---------------------------------------------------------
-# 3. SAMPLE DATABASE OF MATAGORDA BAY SPOTS
+# 3. LOCATION DATABASE
 # ---------------------------------------------------------
 MATAGORDA_SPOTS_DB = [
     {"name": "East Matagorda Oyster Reef A", "lat": 28.621, "lon": -95.912, "protected_wind_dir": 180, "preferred_tide": "Incoming", "wadeable": False, "best_baits": ["Live Shrimp", "Soft Plastics"], "optimal_water_temp_min": 65, "optimal_water_temp_max": 85},
@@ -126,98 +120,91 @@ MATAGORDA_SPOTS_DB = [
 ]
 
 # ---------------------------------------------------------
-# 4. STREAMLIT UI & SIDEBAR MENU
+# 4. SIDEBAR MENU (HIDDEN BY DEFAULT, EDITABLE FACTORS)
 # ---------------------------------------------------------
-st.sidebar.title("🎣 Tactical Engine Parameters")
+fetched_env = fetch_daily_environmental_data()
 
-# Fetch auto-filled factors
-auto_env = fetch_daily_environmental_data()
+st.sidebar.title("⚙️ Engine Parameters & Controls")
+st.sidebar.info("💡 Environmental values auto-fill from weather APIs. Adjust any field below if needed.")
 
-# Section 1: Non-Controllable Factors (Auto-filled)
-st.sidebar.subheader("🌐 Today's Auto-Filled Factors")
-st.sidebar.caption("Auto-populated via Weather & Marine API Data")
+# Editable Non-Controllable Factors
+st.sidebar.subheader("🌐 Today's Factors (Editable)")
+tide_stage = st.sidebar.selectbox("Tide Stage", ["Incoming", "Outgoing", "Slack High", "Slack Low"], index=0)
+wind_speed = st.sidebar.number_input("Wind Speed (mph)", value=fetched_env["wind_speed_mph"], min_value=0.0, max_value=60.0)
+wind_dir = st.sidebar.number_input("Wind Direction (degrees)", value=fetched_env["wind_direction_deg"], min_value=0, max_value=360)
+baro_trend = st.sidebar.selectbox("Barometric Trend", ["Rising", "Falling", "Steady"], index=0)
+water_temp = st.sidebar.number_input("Water Temp (°F)", value=fetched_env["water_temp_f"], min_value=30.0, max_value=100.0)
+solunar_rating = st.sidebar.selectbox("Solunar Window", ["Major Window (Peak)", "Minor Window", "Moderate", "Low"], index=0)
 
-st.sidebar.text_input("Tide Stage", value=auto_env["tide_stage"], disabled=True)
-st.sidebar.text_input("Wind Speed / Dir", value=f"{auto_env['wind_speed_mph']} mph @ {auto_env['wind_direction_deg']}°", disabled=True)
-st.sidebar.text_input("Barometric Trend", value=f"{auto_env['baro_pressure_mb']} mb ({auto_env['baro_trend']})", disabled=True)
-st.sidebar.text_input("Water Temp & Clarity", value=f"{auto_env['water_temp_f']}°F | {auto_env['water_clarity']}", disabled=True)
-st.sidebar.text_input("Solunar Rating", value=f"{auto_env['solunar_rating']} ({auto_env['moon_phase']})", disabled=True)
-
+# Optional User-Controlled Factors
 st.sidebar.markdown("---")
+st.sidebar.subheader("🎯 Tactical Choices (Optional)")
+user_approach = st.sidebar.selectbox("Approach / Style", ["Any Method", "Wading", "Boat Only"], index=0)
+user_bait = st.sidebar.selectbox("Bait Type", ["Any / Not Specified", "Topwater", "Soft Plastics", "Live Shrimp", "Live Finfish", "Spoons"], index=0)
+user_bait_presence = st.sidebar.select_slider("Observed Bait Activity", options=["Unspecified", "Low / None", "Moderate", "High (Mullet/Shrimp Flipping)"], value="Unspecified")
 
-# Section 2: Controllable Factors (Optional User Controls)
-st.sidebar.subheader("⚙️ Controllable Factors (Optional)")
+active_env_factors = {
+    "tide_stage": tide_stage,
+    "wind_speed_mph": wind_speed,
+    "wind_direction_deg": wind_dir,
+    "baro_trend": baro_trend,
+    "water_temp_f": water_temp,
+    "solunar_rating": solunar_rating
+}
 
-user_approach = st.sidebar.selectbox(
-    "Approach / Fishing Style",
-    options=["Any Method", "Wading", "Boat Only"],
-    index=0
-)
-
-user_bait = st.sidebar.selectbox(
-    "Bait Type",
-    options=["Any / Not Specified", "Topwater", "Soft Plastics", "Live Shrimp", "Live Finfish", "Spoons"],
-    index=0
-)
-
-user_bait_presence = st.sidebar.select_slider(
-    "Observed Bait Activity (Optional)",
-    options=["Unspecified", "Low / None", "Moderate", "High (Mullet/Shrimp Flipping)"],
-    value="Unspecified"
-)
-
-user_factors = {
+active_user_factors = {
     "approach_method": None if user_approach == "Any Method" else user_approach,
     "bait_type": None if user_bait == "Any / Not Specified" else user_bait,
     "bait_presence": None if user_bait_presence == "Unspecified" else user_bait_presence
 }
 
 # ---------------------------------------------------------
-# 5. MAIN PAGE DISPLAY - TOP 10 SPOTS
+# 5. MAIN DASHBOARD: MAP & TOP 10 RANKINGS
 # ---------------------------------------------------------
-st.header("🏆 Top 10 Ranked Fishing Spots for Today")
-st.write(f"**Date:** {datetime.date.today().strftime('%B %d, %Y')} | **Algorithm:** 50-Factor Hydro-Barometric Matrix")
+st.title("📌 Matagorda Top 10 Tactical Fishing Spots")
+st.caption("Click the menu arrow (top left) to review or adjust today's environmental variables.")
 
-# Calculate scores for all spots in the database
+# Calculate scores for all spots
 scored_spots = []
 for spot in MATAGORDA_SPOTS_DB:
-    score = calculate_spot_score(spot, auto_env, user_factors)
-    spot_entry = spot.copy()
-    spot_entry["score"] = score
-    scored_spots.append(spot_entry)
+    score = calculate_spot_score(spot, active_env_factors, active_user_factors)
+    entry = spot.copy()
+    entry["score"] = score
+    # Generate direct Apple Maps navigation link
+    entry["apple_maps_link"] = f"https://maps.apple.com/?daddr={spot['lat']},{spot['lon']}&q={requests.utils.quote(spot['name'])}"
+    scored_spots.append(entry)
 
-# Sort by highest score and pick top 10
 top_10 = sorted(scored_spots, key=lambda x: x["score"], reverse=True)[:10]
-
-# Convert to DataFrame for presentation
 df_top_10 = pd.DataFrame(top_10)
 df_top_10.insert(0, "Rank", range(1, 11))
-df_top_10["Wadeable"] = df_top_10["wadeable"].map({True: "Yes", False: "No"})
-df_top_10["Recommended Baits"] = df_top_10["best_baits"].apply(lambda x: ", ".join(x))
 
-# Display as stylized table
-st.dataframe(
-    df_top_10[["Rank", "name", "score", "preferred_tide", "Wadeable", "Recommended Baits"]],
-    column_config={
-        "Rank": st.column_config.NumberColumn("Rank", format="#%d"),
-        "name": "Location Name",
-        "score": st.column_config.ProgressColumn("Tactical Score", min_value=0, max_value=100, format="%.1f"),
-        "preferred_tide": "Optimal Tide",
-        "Wadeable": "Wadeable",
-        "Recommended Baits": "Primary Baits"
-    },
-    hide_index=True,
-    use_container_width=True
-)
+# --- Interactive Map Section ---
+st.subheader("🗺️ Top 10 Spots Map")
+st.map(df_top_10[["lat", "lon"]], zoom=10, use_container_width=True)
 
-# Detailed Breakdown for Top 3 Spots
-st.subheader("📍 Top 3 Recommended Spot Breakdown")
-for idx, spot in enumerate(top_10[:3], start=1):
-    with st.expander(f"#{idx} - {spot['name']} (Score: {spot['score']}/100)", expanded=(idx == 1)):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**Optimal Tide:** {spot['preferred_tide']}")
-            st.markdown(f"**Wade Accessibility:** {'Yes' if spot['wadeable'] else 'Boat Access Recommended'}")
-        with col2:
-            st.markdown(f"**Best Match Baits:** {', '.join(spot['best_baits'])}")
-            st.markdown(f"**Protected Wind Axis:** {spot['protected_wind_dir']}°")
+# --- Ranked Table & Apple Maps Navigation ---
+st.subheader("🏆 Ranked List & Mobile Navigation")
+
+col_left, col_right = st.columns([3, 2])
+
+with col_left:
+    st.dataframe(
+        df_top_10[["Rank", "name", "score", "preferred_tide"]],
+        column_config={
+            "Rank": st.column_config.NumberColumn("Rank", format="#%d"),
+            "name": "Location Name",
+            "score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%.1f"),
+            "preferred_tide": "Best Tide"
+        },
+        hide_index=True,
+        use_container_width=True
+    )
+
+with col_right:
+    st.markdown("### 📱 Launch Navigation")
+    for spot in top_10:
+        st.markdown(
+            f"**#{top_10.index(spot)+1} {spot['name']}** ({spot['score']}/100)  \n"
+            f"[🗺️ Open in Apple Maps]({spot['apple_maps_link']})"
+        )
+        st.divider()
