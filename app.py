@@ -70,6 +70,9 @@ else:
 # 2. WAYPOINT DATABASE
 # ==============================================================================
 MATAGORDA_WAYPOINTS = {
+    # ==========================================================================
+    # 1. ORIGINAL DEFAULT WAYPOINTS
+    # ==========================================================================
     "Boone Reef (East Bay)": {
         "lat": 28.7012,
         "lon": -95.8451,
@@ -125,6 +128,92 @@ MATAGORDA_WAYPOINTS = {
         "bottom": "Grass Flats & Sand",
         "wade_grade": "A - Easy Walking",
         "best_for": "Redfish / Flounder",
+    },
+    # ==========================================================================
+    # 2. EAST BAY SPOTS (From First Map Screenshot)
+    # ==========================================================================
+    "Chinquapin Reefs (East Bay)": {
+        "lat": 28.7210,
+        "lon": -95.7890,
+        "species": "Trout",
+        "bottom": "Oyster Reef / Mud",
+        "wade_grade": "B - Shell Boots Required",
+        "best_for": "Speckled Trout",
+    },
+    "Live Oak Bayou Mouth": {
+        "lat": 28.7125,
+        "lon": -95.8150,
+        "species": "Redfish",
+        "bottom": "Soft Mud & Shell Shelf",
+        "wade_grade": "C - Soft Mud",
+        "best_for": "Redfish / Flounder",
+    },
+    "ICW Marsh Drain (East Bay Shore)": {
+        "lat": 28.6880,
+        "lon": -95.8230,
+        "species": "Flounder",
+        "bottom": "Mud & Grass Flats",
+        "wade_grade": "B- - Moderate Footing",
+        "best_for": "Flounder / Redfish",
+    },
+    # ==========================================================================
+    # 3. WEST BAY & PENINSULA SPOTS (From Second Map Screenshot)
+    # ==========================================================================
+    "Collegeport / Tres Palacios Cut": {
+        "lat": 28.6945,
+        "lon": -96.1712,
+        "species": "Trout",
+        "bottom": "Hard Shell / Sand Shoreline",
+        "wade_grade": "A - Great Sand Wading",
+        "best_for": "Speckled Trout / Redfish",
+    },
+    "Halfmoon Reef (West Bay)": {
+        "lat": 28.5821,
+        "lon": -96.2410,
+        "species": "Trout",
+        "bottom": "Restored Oyster Structure",
+        "wade_grade": "Boat Only / Deep Structure",
+        "best_for": "Trout / Drum",
+    },
+    "Palacios Bay Shoreline Flats": {
+        "lat": 28.6812,
+        "lon": -96.2134,
+        "species": "Redfish",
+        "bottom": "Grassy Mud & Shell",
+        "wade_grade": "B - Caution (Soft Pockets)",
+        "best_for": "Sight Casting Redfish",
+    },
+    "Matagorda Peninsula - Sand Bar Point 1": {
+        "lat": 28.5412,
+        "lon": -96.1289,
+        "species": "Trout",
+        "bottom": "Packed Sand & Potholes",
+        "wade_grade": "A+ - Prime Surf/Suds Wading",
+        "best_for": "Big Speckled Trout",
+    },
+    "Matagorda Peninsula - Sand Bar Point 2": {
+        "lat": 28.5198,
+        "lon": -96.1654,
+        "species": "Trout",
+        "bottom": "Packed Sand / Gut Margins",
+        "wade_grade": "A+ - Prime Sand Wading",
+        "best_for": "Speckled Trout / Redfish",
+    },
+    "Greens Bayou Pass (Peninsula Shore)": {
+        "lat": 28.4890,
+        "lon": -96.2210,
+        "species": "Redfish",
+        "bottom": "Sand & Tidal Cut Shell",
+        "wade_grade": "A - Strong Current Channel",
+        "best_for": "Redfish / Flounder",
+    },
+    "Pass Cavallo Approach Flats": {
+        "lat": 28.4412,
+        "lon": -96.3120,
+        "species": "Redfish",
+        "bottom": "Hard Packed Sand Bar",
+        "wade_grade": "A - Easy Walking",
+        "best_for": "Trout / Redfish / Jack Crevalle",
     },
 }
 
